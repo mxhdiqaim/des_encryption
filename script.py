@@ -2,6 +2,8 @@ import argparse
 import os
 import struct
 import sys
+import json
+from datetime import datetime
 from typing import Tuple
 
 try:
@@ -22,6 +24,7 @@ PBKDF2_ITERS = 200_000
 BLOCK_SIZE = 8
 
 HEADER_STRUCT = struct.Struct(">4sB")
+HISTORY_FILE = os.path.expanduser("~/.des_encryptor_history.json")
 
 def pkcs7_pad(data: bytes, block_size: int = BLOCK_SIZE) -> bytes:
     pad_len = block_size - (len(data) % block_size)
@@ -60,6 +63,31 @@ def verify_hmac(salt: bytes, iv: bytes, ciphertext: bytes, tag: bytes, passphras
     except ValueError:
         raise ValueError("HMAC verification failed. Wrong passphrase or file corrupted.")
 
+def load_history():
+    if os.path.exists(HISTORY_FILE):
+        try:
+            with open(HISTORY_FILE, "r") as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+def save_history(history):
+    with open(HISTORY_FILE, "w") as f:
+        json.dump(history, f, indent=2)
+
+def add_history_entry(operation, input_file, output_file):
+    history = load_history()
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "operation": operation,
+        "input": input_file,
+        "output": output_file
+    }
+    history.insert(0, entry)
+    history = history[:100]
+    save_history(history)
+
 def encrypt_file(in_path: str, out_path: str, passphrase: str) -> None:
     if not passphrase:
         raise ValueError("Passphrase must not be empty.")
@@ -76,6 +104,7 @@ def encrypt_file(in_path: str, out_path: str, passphrase: str) -> None:
         f.write(iv)
         f.write(ct)
         f.write(tag)
+    add_history_entry("encrypt", in_path, out_path)
 
 def decrypt_file(in_path: str, out_path: str, passphrase: str) -> None:
     with open(in_path, "rb") as f:
@@ -101,6 +130,7 @@ def decrypt_file(in_path: str, out_path: str, passphrase: str) -> None:
     plaintext = pkcs7_unpad(padded, BLOCK_SIZE)
     with open(out_path, "wb") as f:
         f.write(plaintext)
+    add_history_entry("decrypt", in_path, out_path)
 
 def build_cli():
     p = argparse.ArgumentParser(description="Lightweight File Encryption System Using DES for Securing Student Records at Federal University Dutse")
@@ -157,11 +187,13 @@ def main_cli(argv=None):
 
 def launch_gui():
     import tkinter as tk
-    from tkinter import filedialog, messagebox
+    from tkinter import filedialog, messagebox, ttk
+
     def select_input():
         path = filedialog.askopenfilename(title="Select file")
         if path:
             in_var.set(path)
+
     def do_encrypt():
         path = in_var.get().strip()
         if not path or not os.path.isfile(path):
@@ -180,6 +212,7 @@ def launch_gui():
             messagebox.showinfo("Success", f"Encrypted:\n{path}\n→ {out}")
         except Exception as e:
             messagebox.showerror("Encryption Error", str(e))
+
     def do_decrypt():
         path = in_var.get().strip()
         if not path or not os.path.isfile(path):
@@ -198,6 +231,46 @@ def launch_gui():
             messagebox.showinfo("Success", f"Decrypted:\n{path}\n→ {out}")
         except Exception as e:
             messagebox.showerror("Decryption Error", str(e))
+
+    def show_history():
+        history = load_history()
+        if not history:
+            messagebox.showinfo("History", "No encryption history found.")
+            return
+
+        hist_win = tk.Toplevel(root)
+        hist_win.title("Encryption History")
+        hist_win.geometry("700x400")
+
+        frame = tk.Frame(hist_win)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        tree = ttk.Treeview(frame, columns=("Time", "Operation", "Input", "Output"), show="headings")
+        tree.heading("Time", text="Time")
+        tree.heading("Operation", text="Operation")
+        tree.heading("Input", text="Input File")
+        tree.heading("Output", text="Output File")
+
+        tree.column("Time", width=150)
+        tree.column("Operation", width=80)
+        tree.column("Input", width=230)
+        tree.column("Output", width=230)
+
+        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+
+        tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        for entry in history:
+            time_str = datetime.fromisoformat(entry["timestamp"]).strftime("%Y-%m-%d %H:%M:%S")
+            tree.insert("", "end", values=(
+                time_str,
+                entry["operation"].capitalize(),
+                os.path.basename(entry["input"]),
+                os.path.basename(entry["output"])
+            ))
+
     root = tk.Tk()
     root.title("Lightweight DES Encryptor")
     frm = tk.Frame(root, padx=14, pady=14)
@@ -214,6 +287,7 @@ def launch_gui():
     btn_row.grid(row=4, column=0, columnspan=3, pady=12, sticky="e")
     tk.Button(btn_row, text="Encrypt", width=14, command=do_encrypt).pack(side="left", padx=6)
     tk.Button(btn_row, text="Decrypt", width=14, command=do_decrypt).pack(side="left", padx=6)
+    tk.Button(btn_row, text="History", width=14, command=show_history).pack(side="left", padx=6)
     root.mainloop()
 
 if __name__ == "__main__":
