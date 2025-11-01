@@ -217,4 +217,8 @@ def launch_gui():
     root.mainloop()
 
 if __name__ == "__main__":
-    sys.exit(main_cli())
+    if len(sys.argv) == 1:
+        launch_gui()
+        sys.exit(0)
+    else:
+        sys.exit(main_cli())

@@ -1,3 +1,11 @@
 .idea
 
 venv
+.venv
+dist
+build
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+Student-Records-Encryptor.spec
