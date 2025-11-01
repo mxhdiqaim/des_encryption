@@ -1,0 +1,44 @@
+name: Build Executables
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install pycryptodome pyinstaller
+      - name: Build Windows executable
+        run: pyinstaller --onefile --windowed --name "Student-Records-Encryptor" --hidden-import=Crypto.Cipher.DES --hidden-import=Crypto.Protocol.KDF --hidden-import=Crypto.Hash.SHA256 --hidden-import=Crypto.Hash.HMAC --hidden-import=Crypto.Random script.py
+      - name: Upload Windows executable
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows-executable
+          path: dist/Student-Records-Encryptor.exe
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install pycryptodome pyinstaller
+      - name: Build macOS app
+        run: pyinstaller --onedir --windowed --name "Student-Records-Encryptor" --hidden-import=Crypto.Cipher.DES --hidden-import=Crypto.Protocol.KDF --hidden-import=Crypto.Hash.SHA256 --hidden-import=Crypto.Hash.HMAC --hidden-import=Crypto.Random script.py
+      - name: Create DMG
+        run: |
+          hdiutil create -volname "Student Records Encryptor" -srcfolder dist/Student-Records-Encryptor.app -ov -format UDZO dist/Student-Records-Encryptor.dmg
+      - name: Upload macOS app
+        uses: actions/upload-artifact@v3
+        with:
+          name: macos-dmg
+          path: dist/Student-Records-Encryptor.dmg
